@@ -11,7 +11,7 @@
 </h1>
 
 <p align="center">
-    <b><a href="CONTRIBUTING.md">Contributing Guide</a> • <a href="BUILDING.md">Building Guide</a></b>
+    <b><a href="https://download.skyline-emu.one/">Download APK</a> • <a href="CONTRIBUTING.md">Contributing Guide</a> • <a href="BUILDING.md">Building Guide</a></b>
 </p>
 
 <p align="center">
