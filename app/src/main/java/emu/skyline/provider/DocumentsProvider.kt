@@ -19,6 +19,7 @@ import java.io.*
 
 class DocumentsProvider : DocumentsProvider() {
     private val baseDirectory = File(SkylineApplication.instance.getPublicFilesDir().canonicalPath)
+    private val applicationName = SkylineApplication.instance.applicationInfo.loadLabel(SkylineApplication.instance.packageManager).toString()
 
     companion object {
         private val DEFAULT_ROOT_PROJECTION : Array<String> = arrayOf(
@@ -40,6 +41,10 @@ class DocumentsProvider : DocumentsProvider() {
             DocumentsContract.Document.COLUMN_FLAGS,
             DocumentsContract.Document.COLUMN_SIZE
         )
+
+        const val AUTHORITY : String = "emu.skyline.provider"
+
+        const val ROOT_ID : String = "root"
     }
 
     override fun onCreate() : Boolean {
@@ -50,29 +55,31 @@ class DocumentsProvider : DocumentsProvider() {
      * @return The [File] that corresponds to the document ID supplied by [getDocumentId]
      */
     private fun getFile(documentId : String) : File {
-        val file = File(documentId)
-        if (!file.exists()) throw FileNotFoundException(file.absolutePath + " not found")
-        return file
+        if (documentId.startsWith(ROOT_ID)) {
+            val file = baseDirectory.resolve(documentId.drop(ROOT_ID.length + 1))
+            if (!file.exists()) throw FileNotFoundException("${file.absolutePath} ($documentId) not found")
+            return file
+        } else {
+            throw FileNotFoundException("'$documentId' is not in any known root")
+        }
     }
 
     /**
      * @return A unique ID for the provided [File]
      */
     private fun getDocumentId(file : File) : Any? {
-        return file.absolutePath
+        return "$ROOT_ID/${file.toRelativeString(baseDirectory)}"
     }
 
     override fun queryRoots(projection : Array<out String>?) : Cursor {
         val cursor = MatrixCursor(projection ?: DEFAULT_ROOT_PROJECTION)
-        val applicationTitle = SkylineApplication.instance.applicationInfo.loadLabel(SkylineApplication.instance.packageManager).toString()
-        val baseDirectoryDocumentId = getDocumentId(baseDirectory)
 
         cursor.newRow().apply {
-            add(DocumentsContract.Root.COLUMN_ROOT_ID, baseDirectoryDocumentId)
+            add(DocumentsContract.Root.COLUMN_ROOT_ID, ROOT_ID)
             add(DocumentsContract.Root.COLUMN_SUMMARY, null)
             add(DocumentsContract.Root.COLUMN_FLAGS, DocumentsContract.Root.FLAG_SUPPORTS_CREATE or DocumentsContract.Root.FLAG_SUPPORTS_IS_CHILD)
-            add(DocumentsContract.Root.COLUMN_TITLE, applicationTitle)
-            add(DocumentsContract.Root.COLUMN_DOCUMENT_ID, baseDirectoryDocumentId)
+            add(DocumentsContract.Root.COLUMN_TITLE, applicationName)
+            add(DocumentsContract.Root.COLUMN_DOCUMENT_ID, getDocumentId(baseDirectory))
             add(DocumentsContract.Root.COLUMN_MIME_TYPES, "*/*")
             add(DocumentsContract.Root.COLUMN_AVAILABLE_BYTES, baseDirectory.freeSpace)
             add(DocumentsContract.Root.COLUMN_ICON, R.drawable.logo_skyline)
@@ -214,16 +221,15 @@ class DocumentsProvider : DocumentsProvider() {
             flags = flags or DocumentsContract.Document.FLAG_SUPPORTS_RENAME
         }
 
-        val displayName = localFile.name
-        val mimeType = getTypeForFile(localFile)
-
         cursor.newRow().apply {
             add(DocumentsContract.Document.COLUMN_DOCUMENT_ID, localDocumentId)
-            add(DocumentsContract.Document.COLUMN_DISPLAY_NAME, displayName)
+            add(DocumentsContract.Document.COLUMN_DISPLAY_NAME, if (localFile == baseDirectory) applicationName else localFile.name)
             add(DocumentsContract.Document.COLUMN_SIZE, localFile.length())
-            add(DocumentsContract.Document.COLUMN_MIME_TYPE, mimeType)
+            add(DocumentsContract.Document.COLUMN_MIME_TYPE, getTypeForFile(localFile))
             add(DocumentsContract.Document.COLUMN_LAST_MODIFIED, localFile.lastModified())
             add(DocumentsContract.Document.COLUMN_FLAGS, flags)
+            if (localFile == baseDirectory)
+                add(DocumentsContract.Root.COLUMN_ICON, R.drawable.logo_skyline)
         }
 
         return cursor
